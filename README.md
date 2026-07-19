@@ -43,6 +43,21 @@ a partir de `icon.svg` com `node scripts/icons.mjs`). No iPhone: abrir o site
 no Safari → Compartilhar → "Adicionar à Tela de Início". Requer o app
 hospedado com HTTPS (Vercel, Netlify, Cloudflare Pages…).
 
+## Publicação (GitHub Pages)
+
+No ar em **https://pedrodetsi.github.io/cordilheira/** (repo
+`pedrodetsi/cordilheira`, branch `gh-pages`). Para republicar depois de
+qualquer mudança:
+
+```powershell
+npm run build
+cd dist; git init -b gh-pages; git add -A; git commit -m "Deploy"
+git push -f https://github.com/pedrodetsi/cordilheira.git gh-pages
+cd ..; Remove-Item -Recurse -Force dist\.git
+```
+
+(e `git push` normal na main para versionar o código)
+
 ## Scripts de desenvolvimento
 
 - `node scripts/shot.mjs out.png [w] [h] [esperaMs]` — screenshot headless (Edge).
