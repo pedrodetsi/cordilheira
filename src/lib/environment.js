@@ -13,16 +13,16 @@ const RIO = { lat: -22.9068, lon: -43.1729 }
 
 // Keyframes do céu limpo ao longo do dia (hora 0–24, com wrap).
 const KF = [
-  { h: 0.0,  top: '#2b3f63', mid: '#3c527a', low: '#4d6690', light: '#aabcde', li: 0.62, hi: 0.68 },
-  { h: 5.3,  top: '#41537a', mid: '#9a8892', low: '#e6a866', light: '#ffbb82', li: 0.7,  hi: 0.66 },
+  { h: 0.0,  top: '#33496f', mid: '#455d86', low: '#56709b', light: '#b6c6e8', li: 0.68, hi: 0.74 },
+  { h: 5.3,  top: '#4a5c83', mid: '#a08e98', low: '#e9ab6a', light: '#ffbe86', li: 0.74, hi: 0.7  },
   { h: 6.6,  top: '#7c9fc9', mid: '#e8c39a', low: '#ffcf94', light: '#ffcf9a', li: 0.9,  hi: 0.72 },
   { h: 8.0,  top: '#a9c8e8', mid: '#eaf2f8', low: '#ffe6c2', light: '#ffe6b8', li: 1.12, hi: 0.86 },
   { h: 12.0, top: '#bfdff2', mid: '#e9f4fa', low: '#ffedd0', light: '#fff2d8', li: 1.3,  hi: 0.9  },
   { h: 16.0, top: '#b7d4ec', mid: '#eef1ea', low: '#ffe1b2', light: '#ffdca2', li: 1.15, hi: 0.85 },
   { h: 17.6, top: '#6f8ec0', mid: '#f2b06a', low: '#ff8f4d', light: '#ff9a58', li: 1.0,  hi: 0.62 },
-  { h: 18.8, top: '#44598a', mid: '#b1738a', low: '#e08a5a', light: '#d69a86', li: 0.68, hi: 0.58 },
-  { h: 20.0, top: '#31456a', mid: '#3e5680', low: '#506a92', light: '#a2b4d8', li: 0.62, hi: 0.66 },
-  { h: 24.0, top: '#2b3f63', mid: '#3c527a', low: '#4d6690', light: '#aabcde', li: 0.62, hi: 0.68 },
+  { h: 18.8, top: '#4a5f90', mid: '#b1738a', low: '#e08a5a', light: '#d69a86', li: 0.7,  hi: 0.62 },
+  { h: 20.0, top: '#384f77', mid: '#47618d', low: '#5a749e', light: '#aec0e4', li: 0.67, hi: 0.72 },
+  { h: 24.0, top: '#33496f', mid: '#455d86', low: '#56709b', light: '#b6c6e8', li: 0.68, hi: 0.74 },
 ]
 
 const _a = new THREE.Color()
