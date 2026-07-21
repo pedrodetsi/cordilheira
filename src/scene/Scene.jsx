@@ -5,6 +5,7 @@ import * as THREE from 'three'
 import Peak from './Peak'
 import Sky from './Sky'
 import Rain from './Rain'
+import Terrain from './Terrain'
 import RecordBurst from './RecordBurst'
 import { TrendRibbon, PlateauSheet, GoalPeak, RecordHalo, YearMarkers } from './extras'
 import { H_SCALE } from '../lib/layout'
@@ -49,20 +50,6 @@ function Environment({ env }) {
 const _t = new THREE.Color(), _t2 = new THREE.Color(), _t3 = new THREE.Color()
 const _t4 = new THREE.Color(), _t5 = new THREE.Color(), _v = new THREE.Vector3()
 
-function Ground({ env }) {
-  const ref = useRef()
-  useFrame(() => {
-    if (ref.current) ref.current.material.color.lerp(_g.set(env.ground), 0.05)
-  })
-  return (
-    <mesh ref={ref} rotation-x={-Math.PI / 2} position-y={-0.02}>
-      <planeGeometry args={[640, 640]} />
-      <meshStandardMaterial color={env.ground} roughness={1} />
-    </mesh>
-  )
-}
-const _g = new THREE.Color()
-
 export default function Scene({
   runs, layout, matchedIds, selectedId, onSelect, onHover,
   plateaus, monthly, trend, goal, record, env,
@@ -87,7 +74,7 @@ export default function Scene({
     >
       <Environment env={env} />
       <Sky env={env} />
-      <Ground env={env} />
+      <Terrain env={env} layout={layout} />
 
       {runs.map((r) => {
         const p = layout.pos.get(r.id)
