@@ -15,8 +15,12 @@ const WEATHER_LABEL = {
 export default function Header({ stats, trend, goal, weather, syncedAt }) {
   const t = TREND_LABEL[trend.dir]
   const w = WEATHER_LABEL[weather] ?? WEATHER_LABEL.clear
+  // formata AAAA-MM-DD sem passar por Date (evita drift de fuso)
+  const syncBR = syncedAt && /^\d{4}-\d{2}-\d{2}/.test(syncedAt)
+    ? syncedAt.slice(0, 10).split('-').reverse().join('/')
+    : syncedAt
   const sync = syncedAt
-    ? `sincronizado com o Strava · ${new Date(syncedAt).toLocaleDateString('pt-BR')}`
+    ? `sincronizado com o Strava · ${syncBR}`
     : 'cada pico é uma corrida, a altura é a distância'
   return (
     <header className="panel header">
