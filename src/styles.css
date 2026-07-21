@@ -69,6 +69,7 @@ body {
 .stat-sub.neg { color: var(--amber); font-weight: 600; }
 .stat.record .stat-value { color: var(--gold); }
 .stat.goal .stat-value { color: var(--cyan); }
+.weather-txt { font-size: 20px !important; }
 .trend-up .trend-txt { color: var(--green); }
 .trend-flat .trend-txt { color: var(--ink-soft); }
 .trend-down .trend-txt { color: var(--amber); }

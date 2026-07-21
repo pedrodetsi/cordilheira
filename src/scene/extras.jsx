@@ -10,38 +10,6 @@ export const FONT_3D = soraSemi
 
 const TREND_COLORS = { up: '#2e9e77', flat: '#5e9bc9', down: '#e08a56' }
 
-// ── Céu: cúpula com gradiente de amanhecer (gelo no zênite, ouro no horizonte)
-export function SkyDome() {
-  const material = useMemo(() => {
-    return new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      depthWrite: false,
-      uniforms: {
-        top: { value: new THREE.Color('#bfdff2') },
-        mid: { value: new THREE.Color('#e9f4fa') },
-        low: { value: new THREE.Color('#ffe9c9') },
-      },
-      vertexShader: `
-        varying vec3 vPos;
-        void main(){ vPos = position; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }`,
-      fragmentShader: `
-        varying vec3 vPos;
-        uniform vec3 top; uniform vec3 mid; uniform vec3 low;
-        void main(){
-          float h = normalize(vPos).y;
-          vec3 c = mix(low, mid, smoothstep(-0.05, 0.18, h));
-          c = mix(c, top, smoothstep(0.18, 0.75, h));
-          gl_FragColor = vec4(c, 1.0);
-        }`,
-    })
-  }, [])
-  return (
-    <mesh material={material} scale={400}>
-      <sphereGeometry args={[1, 32, 24]} />
-    </mesh>
-  )
-}
-
 // ── Trilha da tendência: fita luminosa que acompanha a média mensal,
 //    margeando a cordilheira. Verde subindo, azul estável, âmbar caindo.
 export function TrendRibbon({ monthly, rows, maxWidth, trend }) {
