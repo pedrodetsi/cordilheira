@@ -14,7 +14,7 @@ export async function loadRuns() {
     const list = Array.isArray(data) ? data : data.activities
     if (Array.isArray(list) && list.length) {
       return {
-        raw: list.map((a) => ({ start: a.start, d: a.d, t: a.t })),
+        raw: list.map((a) => ({ start: a.start, d: a.d, t: a.t, e: a.e ?? 0 })),
         updatedAt: data.updatedAt ?? null,
         source: 'strava',
       }

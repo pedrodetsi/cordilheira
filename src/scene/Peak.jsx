@@ -20,6 +20,8 @@ export default function Peak({
   const [hovered, setHovered] = useState(false)
   const height = Math.max(run.km * H_SCALE, 0.15)
   const radius = 0.95 + run.km * 0.055
+  // ganho de elevação por km → rugosidade (satura em ~25 m/km); asfalto ≈ 0
+  const ruggedness = THREE.MathUtils.clamp((run.elevPerKm ?? 0) / 25, 0, 1)
 
   const geometry = useMemo(
     () =>
@@ -29,8 +31,10 @@ export default function Peak({
         height,
         baseColor: isRecord ? COLORS.recordBase : COLORS.base,
         tipColor: isRecord ? COLORS.recordTip : COLORS.tip,
+        ruggedness,
+        rock: !isRecord,
       }),
-    [run.id, radius, height, isRecord]
+    [run.id, radius, height, isRecord, ruggedness]
   )
   useEffect(() => () => geometry.dispose(), [geometry])
 

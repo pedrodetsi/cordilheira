@@ -139,7 +139,8 @@ legend {
   font-family: var(--font-num); font-size: 34px; font-weight: 700; margin: 4px 0 10px;
 }
 .detail-km em { font-style: normal; font-size: 15px; color: var(--ink-soft); }
-.detail-grid { display: flex; gap: 22px; margin-bottom: 10px; }
+.detail-grid { display: flex; flex-wrap: wrap; gap: 12px 20px; margin-bottom: 10px; }
+.detail-grid .terrain { font-style: normal; font-size: 10.5px; color: var(--ink-faint); font-family: var(--font-ui); font-weight: 600; }
 .detail-grid span {
   display: block; font-size: 9.5px; text-transform: uppercase;
   letter-spacing: 0.1em; color: var(--ink-faint); font-weight: 600;
@@ -170,6 +171,7 @@ legend {
 .sw.ice { background: rgba(140, 200, 235, 0.5); }
 .sw.crystal { background: #6ecfe4; }
 .sw.trail { background: var(--green); }
+.sw.rock { background: #8a7f70; }
 .legend .hint { margin-left: auto; color: var(--ink-faint); }
 
 /* ── Responsivo ── */

@@ -9,6 +9,8 @@ export function enrich(raw) {
     const wasPR = km > best
     if (wasPR) best = km
     const date = new Date(a.start)
+    const elevGain = a.e ?? 0
+    const elevPerKm = km > 0 ? elevGain / km : 0 // "montanhosidade" do terreno
     return {
       id: a.start,
       i,
@@ -17,6 +19,8 @@ export function enrich(raw) {
       seconds: a.t,
       pace,
       wasPR,
+      elevGain,
+      elevPerKm,
       date,
       monthKey: a.start.slice(0, 7),
       year: date.getFullYear(),

@@ -5,7 +5,7 @@ import { RAW } from '../src/data/activities.js'
 
 const payload = {
   updatedAt: process.argv[2] ?? null,
-  activities: RAW.map((a) => ({ start: a.start, d: a.d, t: a.t })),
+  activities: RAW.map((a) => ({ start: a.start, d: a.d, t: a.t, e: a.e ?? 0 })),
 }
 writeFileSync('public/activities.json', JSON.stringify(payload))
 console.log('activities.json:', payload.activities.length, 'corridas')

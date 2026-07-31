@@ -6,6 +6,7 @@ export default function Legend() {
       <span><i className="sw ice" /> lençol de platô</span>
       <span><i className="sw crystal" /> próxima meta</span>
       <span><i className="sw trail" /> tendência mensal</span>
+      <span><i className="sw rock" /> pico recortado = corrida montanhosa</span>
       <span className="hint">arraste para girar · scroll/pinça para zoom · clique num pico</span>
     </div>
   )
