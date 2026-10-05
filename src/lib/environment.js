@@ -1,55 +1,20 @@
 import * as THREE from 'three'
+import { SCENE_THEMES } from './theme'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Ambiente da cena: mescla o CICLO DIA/NOITE (hora real do usuário) com o CLIMA
-// atual do Rio de Janeiro (Open-Meteo, sem chave, CORS liberado).
+// Ambiente da cena: paleta do TEMA (manhã/tarde/noite, por horário de Brasília)
+// com o CLIMA atual do Rio de Janeiro sobreposto (Open-Meteo, sem chave).
 //
-// Estados de clima: 'clear' | 'cloudy' | 'rain'. Estados de tempo derivam da
-// hora via keyframes interpolados, então a passagem manhã→tarde→noite é suave.
+// Estados de clima: 'clear' | 'cloudy' | 'rain'.
 // Overrides por URL para teste: ?hour=21 &weather=rain (&noweather p/ pular fetch)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const RIO = { lat: -22.9068, lon: -43.1729 }
 
-// Keyframes do céu limpo ao longo do dia (hora 0–24, com wrap).
-const KF = [
-  { h: 0.0,  top: '#33496f', mid: '#455d86', low: '#56709b', light: '#b6c6e8', li: 0.68, hi: 0.74 },
-  { h: 5.3,  top: '#4a5c83', mid: '#a08e98', low: '#e9ab6a', light: '#ffbe86', li: 0.74, hi: 0.7  },
-  { h: 6.6,  top: '#7c9fc9', mid: '#e8c39a', low: '#ffcf94', light: '#ffcf9a', li: 0.9,  hi: 0.72 },
-  { h: 8.0,  top: '#a9c8e8', mid: '#eaf2f8', low: '#ffe6c2', light: '#ffe6b8', li: 1.12, hi: 0.86 },
-  { h: 12.0, top: '#bfdff2', mid: '#e9f4fa', low: '#ffedd0', light: '#fff2d8', li: 1.3,  hi: 0.9  },
-  { h: 16.0, top: '#b7d4ec', mid: '#eef1ea', low: '#ffe1b2', light: '#ffdca2', li: 1.15, hi: 0.85 },
-  { h: 17.6, top: '#6f8ec0', mid: '#f2b06a', low: '#ff8f4d', light: '#ff9a58', li: 1.0,  hi: 0.62 },
-  { h: 18.8, top: '#4a5f90', mid: '#b1738a', low: '#e08a5a', light: '#d69a86', li: 0.7,  hi: 0.62 },
-  { h: 20.0, top: '#384f77', mid: '#47618d', low: '#5a749e', light: '#aec0e4', li: 0.67, hi: 0.72 },
-  { h: 24.0, top: '#33496f', mid: '#455d86', low: '#56709b', light: '#b6c6e8', li: 0.68, hi: 0.74 },
-]
-
 const _a = new THREE.Color()
 const _b = new THREE.Color()
-function mix(hexA, hexB, t) {
-  return _a.set(hexA).lerp(_b.set(hexB), t).getStyle()
-}
 function toward(hex, target, amt) {
-  return _a.set(hex).lerp(_b.set(target), amt).getStyle()
-}
-const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
-
-function sampleDay(hour) {
-  let i = 0
-  while (i < KF.length - 1 && KF[i + 1].h <= hour) i++
-  const a = KF[i]
-  const b = KF[Math.min(i + 1, KF.length - 1)]
-  const span = b.h - a.h || 1
-  const t = clamp((hour - a.h) / span, 0, 1)
-  return {
-    top: mix(a.top, b.top, t),
-    mid: mix(a.mid, b.mid, t),
-    low: mix(a.low, b.low, t),
-    light: mix(a.light, b.light, t),
-    li: a.li + (b.li - a.li) * t,
-    hi: a.hi + (b.hi - a.hi) * t,
-  }
+  return '#' + _a.set(hex).lerp(_b.set(target), amt).getHexString()
 }
 
 // Código WMO do Open-Meteo → nossa categoria de clima.
@@ -60,27 +25,25 @@ export function classifyWeather(code) {
   return 'rain' // 51+ chuvisco/chuva/neve/trovoada
 }
 
+// → { kind: 'clear'|'cloudy'|'rain', temp: número em °C ou null }
 export async function fetchWeather() {
   const o = weatherOverride()
-  if (o) return o
-  if (new URLSearchParams(location.search).has('noweather')) return 'clear'
+  if (o) return { kind: o, temp: null }
+  if (new URLSearchParams(location.search).has('noweather')) return { kind: 'clear', temp: null }
   try {
     const url =
       `https://api.open-meteo.com/v1/forecast?latitude=${RIO.lat}&longitude=${RIO.lon}` +
-      `&current=weather_code&timezone=America%2FSao_Paulo`
+      `&current=weather_code,temperature_2m&timezone=America%2FSao_Paulo`
     const res = await fetch(url)
     const data = await res.json()
-    return classifyWeather(data?.current?.weather_code)
+    const t = data?.current?.temperature_2m
+    return {
+      kind: classifyWeather(data?.current?.weather_code),
+      temp: typeof t === 'number' ? Math.round(t) : null,
+    }
   } catch {
-    return 'clear'
+    return { kind: 'clear', temp: null }
   }
-}
-
-export function currentHour() {
-  const p = new URLSearchParams(location.search).get('hour')
-  if (p != null && p !== '') return clamp(parseFloat(p), 0, 24)
-  const d = new Date()
-  return d.getHours() + d.getMinutes() / 60
 }
 
 function weatherOverride() {
@@ -89,64 +52,55 @@ function weatherOverride() {
 }
 
 // Monta o descritor completo do ambiente para a cena.
-export function computeEnvironment(hour, weather) {
-  const day = sampleDay(hour)
-  const isNight = hour < 5.3 || hour >= 19.4
-  const isTwilight = (hour >= 5.3 && hour < 6.8) || (hour >= 17.2 && hour < 19.4)
-
-  let { top, mid, low, light, li, hi } = day
-
-  // posição do sol pelo arco do dia (nascer ~6h a leste, poente ~18h a oeste)
-  const ang = ((hour - 6) / 12) * Math.PI
-  const sunY = Math.sin(ang) * 46 + 4
-  const sun = [-Math.cos(ang) * 62, sunY, -34]
-
-  let showSun = weather === 'clear' && sunY > 3
-  let showMoon = weather !== 'rain' && isNight
-  let starBase = isNight ? 1 : isTwilight ? 0.35 : 0
+export function computeEnvironment(theme, weather) {
+  const P = SCENE_THEMES[theme]
+  const night = theme === 'noite'
+  let sky = [...P.sky]
+  let fog = P.fog, fogNear = P.fogNear, fogFar = P.fogFar
+  let sunI = P.sun[1], hemiI = P.hemi[2]
+  let showSun = true
+  let moonOpacity = 1
+  let stars = P.stars ? 1 : 0
   let cloudOpacity = 0
   let rainIntensity = 0
-  let fogNear = 80
-  let fogFar = 235
 
   if (weather === 'cloudy') {
-    const g = '#d4dae0'
-    top = toward(top, g, 0.42); mid = toward(mid, g, 0.42); low = toward(low, g, 0.36)
-    light = toward(light, '#e8ebec', 0.35)
-    li *= 0.74; hi *= 0.92
-    cloudOpacity = 0.55
-    starBase *= 0.22
-    showSun = false
-    fogNear = 66; fogFar = 188
+    const g = night ? '#2a3140' : '#d4dae0'
+    sky = [toward(sky[0], g, 0.42), toward(sky[1], g, 0.42), toward(sky[2], g, 0.36)]
+    fog = toward(fog, g, 0.3)
+    sunI *= 0.74; hemiI *= 0.95
+    fogNear *= 0.85; fogFar *= 0.8
+    cloudOpacity = night ? 0.35 : 0.55
+    stars *= 0.22
+    moonOpacity = 0.5
+    if (!night) showSun = false
   } else if (weather === 'rain') {
-    const g = '#8e97a0'
-    top = toward(top, g, 0.55); mid = toward(mid, g, 0.55); low = toward(low, g, 0.5)
-    light = toward(light, '#aeb6bd', 0.5)
-    li *= 0.52; hi *= 0.86
-    cloudOpacity = 0.85
+    const g = night ? '#1d232d' : '#8e97a0'
+    sky = [toward(sky[0], g, 0.55), toward(sky[1], g, 0.55), toward(sky[2], g, 0.5)]
+    fog = toward(fog, g, 0.45)
+    sunI *= 0.52; hemiI *= 0.9
+    fogNear *= 0.65; fogFar *= 0.6
+    cloudOpacity = night ? 0.5 : 0.85
     rainIntensity = 1
-    starBase = 0
-    showSun = false; showMoon = false
-    fogNear = 46; fogFar = 150
+    stars = 0
+    showSun = false
+    moonOpacity = 0
   }
 
-  // chão: escurece à noite, "molha" (esverdeado-frio) na chuva
-  let ground = mix('#33404f', '#edf4f9', clamp(day.li / 1.25, 0, 1))
-  if (weather === 'rain') ground = toward(ground, '#aab6bf', 0.4)
-
-  const moon = [-24, 27, -26]
-
   return {
-    hour, weather, isNight,
-    sky: { top, mid, low },
-    hemi: { sky: top, ground: low, intensity: hi },
-    sun: { position: sun, color: light, intensity: li, show: showSun },
-    moon: { position: moon, show: showMoon, opacity: weather === 'cloudy' ? 0.5 : 1 },
-    fill: { color: mix('#cfe6f7', '#3a5578', clamp(1 - day.li / 1.3, 0, 1)), intensity: 0.3 + (1 - clamp(day.li / 1.3, 0, 1)) * 0.15 },
-    stars: clamp(starBase, 0, 1),
+    theme, weather, night, palette: P,
+    sky,
+    fog: { color: fog, near: fogNear, far: fogFar },
+    hemi: { sky: P.hemi[0], ground: P.hemi[1], intensity: hemiI },
+    sun: { color: P.sun[0], intensity: sunI, dir: P.sunDir },
+    sprite: {
+      color: P.sunSprite, position: P.sunPos, scale: P.sunScale,
+      opacity: night ? moonOpacity : showSun ? 1 : 0,
+    },
+    stars,
     cloudOpacity,
+    cloudColor: night ? '#5a6578' : '#ffffff',
     rainIntensity,
-    fog: { color: mix(mid, top, 0.4), near: fogNear, far: fogFar },
-    ground,
+    exposure: P.exposure,
   }
 }

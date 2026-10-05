@@ -15,17 +15,36 @@ npm run build    # gera dist/ estático (pode hospedar em qualquer lugar)
 
 - **Fileiras (eixo da profundidade)** = meses, do passado (fundo, na névoa) ao
   presente (frente). Meses sem corrida aparecem como vales vazios.
-- **Pico dourado com halo** = recorde atual de distância.
+- **Pico dourado com anel** = recorde atual de distância.
 - **Losangos dourados** flutuando = corridas que foram recorde pessoal *na época*.
-- **Lençol de gelo translúcido** = platô detectado (≥10 corridas com distância
-  estagnada). O rótulo diz quantas corridas e em que distância você ficou preso.
-- **Cristal ciano** = próximo pico a conquistar (+10% sobre a maior corrida dos
-  últimos 60 dias — progressão segura).
-- **Trilha verde/azul/âmbar** na lateral = média mensal de distância
-  (subindo / estável / caindo).
+- **Pico translúcido com cristal** = próximo pico a conquistar (+10% sobre a
+  maior corrida dos últimos 60 dias — progressão segura).
+- **Trilha na lateral** = média mensal de distância.
+- Platôs (≥10 corridas com distância estagnada) aparecem no selo
+  "Dentro de um planalto" do painel da corrida.
 
-Arraste para girar, scroll/pinça para zoom, clique num pico para detalhes.
-Filtros (ritmo, distância, período do dia, ano) no canto superior direito.
+Arraste para girar, pinça para zoom, toque num pico para detalhes (sem
+seleção, o painel mostra o recorde). Botões **Filtros** e **?** acima do painel.
+
+## Visual por horário (Brasília)
+
+Estilo "montanha realista" com 3 temas automáticos: **Manhã** (05–11h59),
+**Tarde** (12–17h59) e **Noite** (18–04h59) — cena 3D e cores da UI mudam
+juntas. O clima atual do Rio (Open-Meteo) é sobreposto (nuvens/chuva).
+Paletas em `src/lib/theme.js`; tokens da UI em `src/styles.css`
+(`[data-theme]`). Terreno 100% procedural (`src/scene/Terrain.jsx`); em
+aparelhos fracos usa malha menor e desliga sombras.
+
+Testes por URL: `?hour=21` (força o tema), `?weather=rain|cloudy|clear`,
+`?nointro` (pula a abertura).
+
+## Runner BI
+
+Botão **Runner BI** no mapa abre os indicadores de desempenho: período
+(última corrida, 7/30/90 dias, este ano, ano passado, tudo, datas), filtros de
+distância/ritmo/dia da semana, KPIs com comparação ao período anterior, ritmo,
+recordes estimados (5 km, 10 km, meia), km por semana, sequências e quando você
+corre. Lógica em `src/lib/runnerBI.js`; o estado fica salvo no navegador.
 
 ## Atualizar com dados novos do Strava
 

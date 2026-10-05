@@ -1,146 +1,144 @@
-import { useMemo, useRef } from 'react'
-import { useFrame } from '@react-three/fiber'
+import { useEffect, useMemo } from 'react'
 import * as THREE from 'three'
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Terreno: solo ondulado de neve (dunas suaves) numa paisagem AMPLA, com uma
-// cordilheira distante no horizonte para dar vastidão. A área central onde
-// ficam os picos-corrida permanece quase plana (máscara), para que eles não
-// flutuem nem afundem; as dunas crescem só para fora, no entorno e no primeiro
-// plano. Cor e sombreamento seguem o ambiente (dia/noite × clima).
+// Terreno realista, 100% procedural: colinas fbm baixas + cristas "ridged
+// multifractal" que só crescem FORA da área dos picos-corrida (rampa
+// smoothstep de 40 un.). Cor por vértice: terra → rocha pela inclinação, neve
+// por altitude só onde a encosta é plana, manchas de neve no solo e variação
+// fina. Material com textura de granulado gerada em canvas (map + bumpMap).
+// A geometria (alturas, inclinação, ruídos) é calculada uma vez; trocar o
+// tema só recolore os vértices.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const smoothstep = (a, b, x) => {
-  const t = Math.min(1, Math.max(0, (x - a) / (b - a)))
-  return t * t * (3 - 2 * t)
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
+const smooth = (a, b, x) => { const t = clamp((x - a) / (b - a), 0, 1); return t * t * (3 - 2 * t) }
+const h2 = (i, j) => { const s = Math.sin(i * 127.1 + j * 311.7) * 43758.5453; return s - Math.floor(s) }
+function vn(x, z) {
+  const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j
+  const ux = fx * fx * (3 - 2 * fx), uz = fz * fz * (3 - 2 * fz)
+  const a = h2(i, j), b = h2(i + 1, j), c = h2(i, j + 1), d = h2(i + 1, j + 1)
+  return a + (b - a) * ux + (c - a) * uz + (a - b - c + d) * ux * uz
 }
-function hash(x, z) {
-  const h = Math.sin(x * 127.1 + z * 311.7) * 43758.5453
-  return h - Math.floor(h)
+function fbm(x, z, o = 5) {
+  let s = 0, a = 0.5, f = 1, n = 0
+  for (let k = 0; k < o; k++) { s += a * vn(x * f + k * 17.3, z * f - k * 9.1); n += a; a *= 0.5; f *= 2.03 }
+  return s / n
 }
-function vnoise(x, z) {
-  const xi = Math.floor(x), zi = Math.floor(z)
-  const xf = x - xi, zf = z - zi
-  const u = xf * xf * (3 - 2 * xf), v = zf * zf * (3 - 2 * zf)
-  const a = hash(xi, zi), b = hash(xi + 1, zi), c = hash(xi, zi + 1), d = hash(xi + 1, zi + 1)
-  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v
-}
-function fbm(x, z) {
-  return vnoise(x, z) * 0.6 + vnoise(x * 2.3, z * 2.3) * 0.3 + vnoise(x * 4.9, z * 4.9) * 0.1
+function ridged(x, z, o = 5) {
+  let s = 0, a = 0.5, f = 1, w = 1, n = 0
+  for (let k = 0; k < o; k++) {
+    let r = 1 - Math.abs(vn(x * f + k * 31.7, z * f + k * 7.9) * 2 - 1)
+    r *= r * w
+    w = clamp(r * 1.6, 0, 1)
+    s += r * a; n += a; a *= 0.5; f *= 2.1
+  }
+  return s / n
 }
 
-function buildTerrain({ size, seg, midZ, xHalf, zHalf }) {
-  const MARGIN = 5, RAMP = 20, MAXAMP = 2.5, FREQ = 0.05
-  const half = size / 2
-  const step = size / seg
-  const n = seg + 1
-  const pos = new Float32Array(n * n * 3)
-  const col = new Float32Array(n * n * 3)
-  const dip = new THREE.Color('#cdd9e6'), crest = new THREE.Color('#ffffff'), c = new THREE.Color()
-
-  for (let iz = 0; iz < n; iz++) {
-    for (let ix = 0; ix < n; ix++) {
-      const x = -half + ix * step
-      const z = -half + iz * step
-      const dx = Math.max(0, Math.abs(x) - (xHalf + MARGIN))
-      const dz = Math.max(0, Math.abs(z - midZ) - (zHalf + MARGIN))
-      const distOut = Math.sqrt(dx * dx + dz * dz)
-      const amp = smoothstep(0, RAMP, distOut) * MAXAMP
-      const y = (fbm((x + 500) * FREQ, (z + 500) * FREQ) - 0.5) * 2 * amp
-      const o = (iz * n + ix) * 3
-      pos[o] = x; pos[o + 1] = y; pos[o + 2] = z
-      const hN = THREE.MathUtils.clamp((y + MAXAMP) / (2 * MAXAMP), 0, 1)
-      c.copy(dip).lerp(crest, 0.55 + hN * 0.45)
-      col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b
-    }
+function buildShape(layout, lowPower) {
+  const span = layout.maxWidth / 2 + 5
+  const zMin = layout.zOff - 4
+  const zMax = layout.lastZ + 8
+  const outside = (x, z) => {
+    const dx = Math.max(0, Math.abs(x) - span)
+    const dz = Math.max(0, zMin - z, z - zMax)
+    const o = clamp(Math.hypot(dx, dz) / 40, 0, 1)
+    return o * o * (3 - 2 * o)
+  }
+  const hgt = (x, z) => {
+    const o = outside(x, z)
+    const m = ridged(x * 0.022, z * 0.022, 6)
+    const hills = fbm(x * 0.05, z * 0.05, 4)
+    const far = clamp((Math.hypot(x, z) - 60) / 90, 0, 1)
+    return (hills - 0.5) * 0.5 + o * (m * m * (30 + far * 22) + hills * 6) - 0.05
   }
 
-  const idx = []
-  for (let iz = 0; iz < seg; iz++) {
-    for (let ix = 0; ix < seg; ix++) {
-      const a = iz * n + ix, b = a + 1, cc = a + n, d = cc + 1
-      idx.push(a, cc, b, b, cc, d)
-    }
+  const g = lowPower
+    ? new THREE.PlaneGeometry(340, 400, 120, 140)
+    : new THREE.PlaneGeometry(340, 400, 210, 250)
+  g.rotateX(-Math.PI / 2)
+  const p = g.attributes.position
+  const n = p.count
+  const Y = new Float32Array(n), slope = new Float32Array(n)
+  const det = new Float32Array(n), fine = new Float32Array(n), patch = new Float32Array(n)
+  const e = 0.9
+  for (let i = 0; i < n; i++) {
+    const x = p.getX(i), z = p.getZ(i), y = hgt(x, z)
+    p.setY(i, y)
+    Y[i] = y
+    const nx = hgt(x - e, z) - hgt(x + e, z)
+    const nz = hgt(x, z - e) - hgt(x, z + e)
+    slope[i] = 1 - (2 * e) / Math.hypot(nx, 2 * e, nz)
+    det[i] = fbm(x * 0.35, z * 0.35, 3)
+    fine[i] = vn(x * 1.7, z * 1.7)
+    patch[i] = fbm(x * 0.09 + 5, z * 0.09 - 3, 4) + (fine[i] - 0.5) * 0.18
   }
-  const g = new THREE.BufferGeometry()
-  g.setAttribute('position', new THREE.BufferAttribute(pos, 3))
-  g.setAttribute('color', new THREE.BufferAttribute(col, 3))
-  g.setIndex(idx)
+  g.setAttribute('color', new THREE.BufferAttribute(new Float32Array(n * 3), 3))
   g.computeVertexNormals()
-  return g
+  return { geometry: g, Y, slope, det, fine, patch }
 }
 
-function Snowfield({ env, layout }) {
-  const ref = useRef()
-  const geometry = useMemo(
-    () =>
-      buildTerrain({
-        size: 760,
-        seg: 200,
-        midZ: layout.zOff + layout.depth / 2,
-        xHalf: layout.maxWidth / 2,
-        zHalf: layout.depth / 2,
-      }),
-    [layout]
-  )
-  useFrame(() => {
-    if (ref.current) ref.current.material.color.lerp(_g.set(env.ground), 0.05)
-  })
-  return (
-    <mesh ref={ref} geometry={geometry} position-y={-0.02} receiveShadow>
-      <meshStandardMaterial vertexColors color={env.ground} roughness={1} flatShading />
-    </mesh>
-  )
-}
-const _g = new THREE.Color()
-
-// Cordilheira distante: anel de montanhas low-poly no horizonte, esmaecidas
-// pela névoa — dá a sensação de um mundo alpino vasto ao redor.
-function DistantRanges({ env }) {
-  const cones = useMemo(() => {
-    const out = []
-    const N = 44
-    for (let i = 0; i < N; i++) {
-      const ang = i * 2.399963 + hash(i, 7) * 0.5
-      const rad = 118 + hash(i, 3) * 74
-      const h = 9 + hash(i, 11) * 20
-      const baseR = 13 + hash(i, 5) * 22
-      out.push({
-        x: Math.cos(ang) * rad,
-        z: Math.sin(ang) * rad,
-        h,
-        baseR,
-        rot: hash(i, 9) * Math.PI,
-      })
+function paint(shape, P) {
+  const { geometry, Y, slope, det, fine, patch } = shape
+  const col = geometry.attributes.color
+  const dirt = new THREE.Color(P.groundLo), soil = new THREE.Color(P.groundHi)
+  const rock = new THREE.Color(P.base), rockHi = new THREE.Color(P.mid)
+  const snowC = new THREE.Color(P.snow), snowG = new THREE.Color(P.groundSnowC || P.snow)
+  const tc = new THREE.Color(), rc = new THREE.Color()
+  const snowLine = P.snowLine ?? 13
+  for (let i = 0; i < Y.length; i++) {
+    const y = Y[i], s = slope[i], d = det[i], f = fine[i]
+    tc.copy(dirt).lerp(soil, clamp(d * 1.2 - 0.1 + y * 0.02, 0, 1))
+    rc.copy(rock).lerp(rockHi, clamp(d * 0.9 + f * 0.25 + y * 0.012, 0, 1))
+    tc.lerp(rc, smooth(0.12, 0.38, s + (f - 0.5) * 0.12))
+    const flatness = 1 - smooth(0.22, 0.5, s)
+    let sn = smooth(snowLine - 4, snowLine + 3, y + (d - 0.5) * 9) * flatness
+    if (P.groundSnow != null) {
+      sn = Math.max(sn, smooth(P.groundSnow, P.groundSnow + 0.09, patch[i]) * flatness * 0.92)
     }
-    return out
-  }, [])
-  const mat = useMemo(
-    () => new THREE.MeshStandardMaterial({ roughness: 1, flatShading: true, color: '#9fb2c6' }),
-    []
-  )
-  useFrame(() => {
-    // mescla com o tom do horizonte para derreter na névoa (dia/noite × clima)
-    _d.set(env.hemi.ground).lerp(_d2.set(env.fog.color), 0.55)
-    mat.color.lerp(_d, 0.05)
-  })
-  return (
-    <group>
-      {cones.map((c, i) => (
-        <mesh key={i} position={[c.x, c.h / 2 - 1.5, c.z]} rotation-y={c.rot} material={mat}>
-          <coneGeometry args={[c.baseR, c.h, 6, 1]} />
-        </mesh>
-      ))}
-    </group>
-  )
+    tc.lerp(y > snowLine - 4 ? snowC : snowG, clamp(sn, 0, 1))
+    tc.multiplyScalar(0.92 + f * 0.16)
+    col.setXYZ(i, tc.r, tc.g, tc.b)
+  }
+  col.needsUpdate = true
 }
-const _d = new THREE.Color(), _d2 = new THREE.Color()
 
-export default function Terrain({ env, layout }) {
+// Textura de granulado 256×256 (fbm + ruído), usada como map e bumpMap.
+function grainTexture() {
+  const N = 256
+  const c = document.createElement('canvas')
+  c.width = c.height = N
+  const g = c.getContext('2d')
+  const img = g.createImageData(N, N)
+  for (let y = 0; y < N; y++) {
+    for (let x = 0; x < N; x++) {
+      const v = 0.55 * fbm(x / 9, y / 9, 3) + 0.45 * Math.random()
+      const k = Math.round(205 + v * 50)
+      const o = (y * N + x) * 4
+      img.data[o] = img.data[o + 1] = img.data[o + 2] = k
+      img.data[o + 3] = 255
+    }
+  }
+  g.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(c)
+  t.wrapS = t.wrapT = THREE.RepeatWrapping
+  t.repeat.set(70, 80)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.anisotropy = 4
+  return t
+}
+
+export default function Terrain({ layout, palette, lowPower, shadows }) {
+  const shape = useMemo(() => buildShape(layout, lowPower), [layout, lowPower])
+  useEffect(() => () => shape.geometry.dispose(), [shape])
+  useMemo(() => paint(shape, palette), [shape, palette])
+  const grain = useMemo(() => grainTexture(), [])
+  useEffect(() => () => grain.dispose(), [grain])
+
   return (
-    <>
-      <Snowfield env={env} layout={layout} />
-      <DistantRanges env={env} />
-    </>
+    <mesh geometry={shape.geometry} receiveShadow={shadows}>
+      <meshStandardMaterial vertexColors roughness={0.95} map={grain} bumpMap={grain} bumpScale={0.6} />
+    </mesh>
   )
 }

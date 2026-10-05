@@ -1,78 +1,50 @@
 import * as THREE from 'three'
 
-// Gera um pico facetado (cone irregular) com cores por vértice:
-// base azul-ardósia → topo neve. Altura 1 (escalada depois via mesh.scale.y).
-// A irregularidade é determinística por corrida (seed), então o terreno é
-// estável entre renders.
+// ─────────────────────────────────────────────────────────────────────────────
+// Pico "montanha realista": cone facetado não-indexado com jitter determinístico
+// por hash e cor por face — base → meio pela altura relativa, neve acima do
+// limiar absoluto (só em picos altos), com ruído leve. Corridas montanhosas
+// (≥15 m/km) ganham raio ×1.08 e jitter ×1.9. Geometria já na altura final
+// (a animação de entrada escala y de 0 a 1).
+// ─────────────────────────────────────────────────────────────────────────────
 
-function mulberry32(seed) {
-  let a = seed >>> 0
-  return function () {
-    a |= 0
-    a = (a + 0x6d2b79f5) | 0
-    let t = Math.imul(a ^ (a >>> 15), 1 | a)
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296
-  }
+const clamp = (x, a, b) => Math.min(b, Math.max(a, x))
+export const hash3 = (a, b, c) => {
+  const s = Math.sin(a * 12.9898 + b * 78.233 + c * 37.719) * 43758.5453
+  return s - Math.floor(s)
 }
 
-export function hashSeed(str) {
-  let h = 2166136261
-  for (let i = 0; i < str.length; i++) {
-    h ^= str.charCodeAt(i)
-    h = Math.imul(h, 16777619)
-  }
-  return h >>> 0
-}
-
-const ROCK = new THREE.Color('#8a7f70') // rocha exposta (base de corrida montanhosa)
-
-// `ruggedness` (0..1) = quão montanhosa foi a corrida (ganho de elevação por km).
-// Modula, de forma SUTIL: nº de facetas + amplitude do recorte da silhueta +
-// rocha exposta na base (só em picos não-recorde, via `rock`).
-export function makePeakGeometry({
-  seed, radius, height, baseColor, tipColor, snowline = 0.62,
-  ruggedness = 0, rock = true,
-}) {
-  const rug = THREE.MathUtils.clamp(ruggedness, 0, 1)
-  const segments = 7 + Math.round(rug * 3) // 7 (plano) → 10 (montanhoso)
-  let g = new THREE.ConeGeometry(radius, 1, segments, 4)
-  g.translate(0, 0.5, 0)
-
-  const rnd = mulberry32(seed)
-  const spreadK = 0.32 + rug * 0.30 // recorte lateral: sutilmente maior se montanhoso
-  const wobbleK = 0.06 + rug * 0.10 // cristas verticais
-  const p = g.attributes.position
-  for (let i = 0; i < p.count; i++) {
-    const y = p.getY(i)
-    if (y > 0.01 && y < 0.99) {
-      const spread = radius * spreadK * (1 - y * 0.75)
-      p.setX(i, p.getX(i) + (rnd() - 0.5) * spread)
-      p.setZ(i, p.getZ(i) + (rnd() - 0.5) * spread)
-      p.setY(i, y + (rnd() - 0.5) * wobbleK)
-    }
-  }
-
+// V: { radius, seg, hseg, jitter, snowAbs?, snowFrom? }
+// palette: { base, mid, snow }
+export function makePeakGeometry(V, h, rugged, seed, palette) {
+  let g = new THREE.ConeGeometry(V.radius * (rugged ? 1.08 : 1), h, V.seg, V.hseg, false)
+  g.translate(0, h / 2, 0)
   g = g.toNonIndexed()
-  g.computeVertexNormals()
-
-  const base = new THREE.Color(baseColor)
-  const tip = new THREE.Color(tipColor)
-  const pos = g.attributes.position
-  const colors = new Float32Array(pos.count * 3)
-  const low = new THREE.Color(), c = new THREE.Color()
-  for (let i = 0; i < pos.count; i++) {
-    const h01 = pos.getY(i) // 0 na base → ~1 no topo
-    const worldY = h01 * height
-    // rocha só na porção inferior, proporcional à montanhosidade
-    const rockMask = rock ? THREE.MathUtils.clamp(1 - h01 / 0.5, 0, 1) : 0
-    low.copy(base).lerp(ROCK, rug * 0.5 * rockMask)
-    const t = THREE.MathUtils.smoothstep(worldY / (snowline * height + 0.6), 0.25, 1)
-    c.copy(low).lerp(tip, t)
-    colors[i * 3] = c.r
-    colors[i * 3 + 1] = c.g
-    colors[i * 3 + 2] = c.b
+  const p = g.attributes.position
+  const jit = V.jitter * (rugged ? 1.9 : 1)
+  for (let i = 0; i < p.count; i++) {
+    const x = p.getX(i), y = p.getY(i), z = p.getZ(i)
+    if (y < 0.001 || y > h * 0.999) continue
+    // chave pela posição original → vértices compartilhados recebem o mesmo jitter
+    const kx = Math.round(x * 1000), ky = Math.round(y * 1000), kz = Math.round(z * 1000)
+    const f = 1 + (hash3(kx + seed, ky, kz) - 0.5) * 2 * jit
+    p.setXYZ(i, x * f, y + (hash3(kx, ky + seed, kz) - 0.5) * jit * h * 0.22, z * f)
   }
-  g.setAttribute('color', new THREE.BufferAttribute(colors, 3))
+
+  const col = new Float32Array(p.count * 3)
+  const c = new THREE.Color()
+  const base = new THREE.Color(palette.base)
+  const mid = new THREE.Color(palette.mid)
+  const snow = new THREE.Color(palette.snow)
+  const snowT = V.snowAbs != null ? Math.max(V.snowAbs, h * 0.5) / h : V.snowFrom
+  for (let t = 0; t < p.count; t += 3) {
+    const cy = (p.getY(t) + p.getY(t + 1) + p.getY(t + 2)) / 3 / h
+    const n = (hash3(t, seed, 3) - 0.5) * 0.12
+    if (cy + n > snowT && (V.snowAbs == null || h > V.snowAbs * 0.9)) c.copy(snow)
+    else c.copy(base).lerp(mid, clamp((cy + n) / snowT, 0, 1))
+    for (let k = 0; k < 3; k++) c.toArray(col, (t + k) * 3)
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3))
+  g.computeVertexNormals()
   return g
 }
