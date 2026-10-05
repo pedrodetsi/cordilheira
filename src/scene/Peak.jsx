@@ -8,7 +8,7 @@ const easeOut = (x) => 1 - Math.pow(1 - x, 3)
 const RECORD_SNOW = '#fff3d6'
 
 export default function Peak({
-  run, x, z, isRecord, matched, palette, shadows, delay, onSelect,
+  run, x, z, isRecord, matched, palette, shadows, delay,
 }) {
   const mesh = useRef()
   const mat = useRef()
@@ -64,11 +64,7 @@ export default function Peak({
         scale={[1, 0.001, 1]}
         castShadow={shadows}
         receiveShadow={shadows}
-        onClick={(e) => {
-          if (!matched || e.delta > 6) return
-          e.stopPropagation()
-          onSelect(run)
-        }}
+        userData={{ run, matched }}
         onPointerOver={(e) => {
           if (!matched) return
           e.stopPropagation()
