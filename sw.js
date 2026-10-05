@@ -1,7 +1,7 @@
 // Service worker simples: cache-first para assets versionados do build,
 // network-first para navegação (garante app atualizado quando online,
 // funcionando offline depois da primeira visita).
-const CACHE = 'cordilheira-v2'
+const CACHE = 'cordilheira-v3'
 const BASE = new URL(self.registration.scope).pathname
 
 self.addEventListener('install', (e) => {
