@@ -8,10 +8,10 @@ const PERIODS = [
   ['noite', 'Noite'],
 ]
 
-export default function Filters({ filters, setFilters, years, matchedCount, total }) {
-  const [open, setOpen] = useState(false)
-  const [paceMinTxt, setPaceMinTxt] = useState('')
-  const [paceMaxTxt, setPaceMaxTxt] = useState('')
+// Filtros do mapa (destacam as corridas que batem; as outras esmaecem).
+export default function Filters({ filters, setFilters, empty, years, matchedCount, total, onClose }) {
+  const [paceMinTxt, setPaceMinTxt] = useState(() => fmtPaceInput(filters.paceMin))
+  const [paceMaxTxt, setPaceMaxTxt] = useState(() => fmtPaceInput(filters.paceMax))
 
   const set = (patch) => setFilters((f) => ({ ...f, ...patch }))
   const toggle = (key, value) =>
@@ -26,90 +26,92 @@ export default function Filters({ filters, setFilters, years, matchedCount, tota
   const clear = () => {
     setPaceMinTxt('')
     setPaceMaxTxt('')
-    setFilters({ paceMin: null, paceMax: null, kmMin: null, kmMax: null, periods: [], years: [] })
+    setFilters(empty)
   }
 
-  const active =
-    filters.paceMin != null || filters.paceMax != null || filters.kmMin != null ||
-    filters.kmMax != null || filters.periods.length > 0 || filters.years.length > 0
+  const active = matchedCount !== total
 
   return (
-    <div className={`panel filters ${open ? 'open' : ''}`}>
-      <button className="filters-toggle" onClick={() => setOpen(!open)}>
-        <span>Filtros{active ? ` · ${matchedCount}/${total}` : ''}</span>
-        <span className="chev">{open ? '▾' : '▸'}</span>
-      </button>
+    <div className="panel sheet filters">
+      <div className="grip" />
+      <div className="sheet-head">
+        <h2>Filtros</h2>
+        <button className="sheet-done" onClick={onClose}>Concluir</button>
+      </div>
 
-      {open && (
-        <div className="filters-body">
-          <fieldset>
-            <legend>Faixa de ritmo (min/km)</legend>
-            <div className="range-inputs">
-              <input
-                type="text" inputMode="numeric" placeholder="4:30" value={paceMinTxt}
-                onChange={(e) => { setPaceMinTxt(e.target.value); applyPace(e.target.value, paceMaxTxt) }}
-              />
-              <span>a</span>
-              <input
-                type="text" inputMode="numeric" placeholder="7:00" value={paceMaxTxt}
-                onChange={(e) => { setPaceMaxTxt(e.target.value); applyPace(paceMinTxt, e.target.value) }}
-              />
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Distância (km)</legend>
-            <div className="range-inputs">
-              <input
-                type="number" min="0" step="0.5" placeholder="mín"
-                value={filters.kmMin ?? ''}
-                onChange={(e) => set({ kmMin: e.target.value === '' ? null : Number(e.target.value) })}
-              />
-              <span>a</span>
-              <input
-                type="number" min="0" step="0.5" placeholder="máx"
-                value={filters.kmMax ?? ''}
-                onChange={(e) => set({ kmMax: e.target.value === '' ? null : Number(e.target.value) })}
-              />
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Período do dia</legend>
-            <div className="chips">
-              {PERIODS.map(([k, label]) => (
-                <button
-                  key={k}
-                  className={`chip ${filters.periods.includes(k) ? 'on' : ''}`}
-                  onClick={() => toggle('periods', k)}
-                >
-                  {label}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <fieldset>
-            <legend>Ano</legend>
-            <div className="chips">
-              {years.map((y) => (
-                <button
-                  key={y}
-                  className={`chip ${filters.years.includes(y) ? 'on' : ''}`}
-                  onClick={() => toggle('years', y)}
-                >
-                  {y}
-                </button>
-              ))}
-            </div>
-          </fieldset>
-
-          <div className="filters-foot">
-            <span className="count">{matchedCount} de {total} corridas</span>
-            <button className="clear" onClick={clear} disabled={!active}>Limpar</button>
+      <div className="filters-grid">
+        <fieldset>
+          <legend>Ritmo (min/km)</legend>
+          <div className="range-inputs">
+            <input
+              type="text" inputMode="numeric" placeholder="4:30" value={paceMinTxt}
+              onChange={(e) => { setPaceMinTxt(e.target.value); applyPace(e.target.value, paceMaxTxt) }}
+            />
+            <span>a</span>
+            <input
+              type="text" inputMode="numeric" placeholder="7:00" value={paceMaxTxt}
+              onChange={(e) => { setPaceMaxTxt(e.target.value); applyPace(paceMinTxt, e.target.value) }}
+            />
           </div>
+        </fieldset>
+
+        <fieldset>
+          <legend>Distância (km)</legend>
+          <div className="range-inputs">
+            <input
+              type="number" min="0" step="0.5" inputMode="decimal" placeholder="mín"
+              value={filters.kmMin ?? ''}
+              onChange={(e) => set({ kmMin: e.target.value === '' ? null : Number(e.target.value) })}
+            />
+            <span>a</span>
+            <input
+              type="number" min="0" step="0.5" inputMode="decimal" placeholder="máx"
+              value={filters.kmMax ?? ''}
+              onChange={(e) => set({ kmMax: e.target.value === '' ? null : Number(e.target.value) })}
+            />
+          </div>
+        </fieldset>
+      </div>
+
+      <fieldset>
+        <legend>Período do dia</legend>
+        <div className="chips">
+          {PERIODS.map(([k, label]) => (
+            <button
+              key={k}
+              className={`chip ${filters.periods.includes(k) ? 'on' : ''}`}
+              onClick={() => toggle('periods', k)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-      )}
+      </fieldset>
+
+      <fieldset>
+        <legend>Ano</legend>
+        <div className="chips">
+          {years.map((y) => (
+            <button
+              key={y}
+              className={`chip ${filters.years.includes(y) ? 'on' : ''}`}
+              onClick={() => toggle('years', y)}
+            >
+              {y}
+            </button>
+          ))}
+        </div>
+      </fieldset>
+
+      <div className="filters-foot">
+        <span className="muted">{matchedCount} de {total} corridas</span>
+        <button className="clear" onClick={clear} disabled={!active}>Limpar</button>
+      </div>
     </div>
   )
+}
+
+function fmtPaceInput(sec) {
+  if (sec == null) return ''
+  return `${Math.floor(sec / 60)}:${String(Math.round(sec % 60)).padStart(2, '0')}`
 }

@@ -9,25 +9,28 @@ function terrainLabel(elevPerKm) {
   return 'plano'
 }
 
-export default function DetailCard({ run, isRecord, inPlateau, onClose }) {
-  if (!run) return null
+// Painel inferior: corrida selecionada (ou o recorde, sem seleção).
+export default function DetailCard({ run, isRecord, inPlateau }) {
   return (
-    <div className="panel detail">
-      <button className="close" onClick={onClose} aria-label="Fechar">×</button>
-      <p className="detail-date">{fmtDate(run.date)} · {PERIOD_LABEL[periodOfDay(run.hour)]}</p>
-      <p className="detail-km">{fmtKm(run.km, 2)} <em>km</em></p>
+    <div className="panel sheet detail" key={run.id}>
+      <div className="grip" />
+      <div className="detail-head">
+        <p className="detail-date">{fmtDate(run.date)} · {PERIOD_LABEL[periodOfDay(run.hour)]}</p>
+        <p className="detail-km">{fmtKm(run.km, 2)}<em> km</em></p>
+      </div>
       <div className="detail-grid">
         <div><span>Ritmo</span><strong>{fmtPace(run.pace)}/km</strong></div>
         <div><span>Duração</span><strong>{fmtDur(run.seconds)}</strong></div>
         <div>
           <span>Elevação</span>
-          <strong>{Math.round(run.elevGain)} m <em className="terrain">· {terrainLabel(run.elevPerKm)}</em></strong>
+          <strong>{Math.round(run.elevGain)} m</strong>
+          <small>{terrainLabel(run.elevPerKm)}</small>
         </div>
       </div>
       <div className="badges">
-        {isRecord && <span className="badge gold">🏔 Recorde atual</span>}
-        {!isRecord && run.wasPR && <span className="badge amber">✦ Foi recorde na época</span>}
-        {inPlateau && <span className="badge ice">≋ Dentro de um planalto</span>}
+        {isRecord && <span className="badge rec">Recorde atual</span>}
+        {!isRecord && run.wasPR && <span className="badge was">Foi recorde na época</span>}
+        {inPlateau && <span className="badge plat">Dentro de um planalto</span>}
       </div>
     </div>
   )

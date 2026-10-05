@@ -1,61 +1,50 @@
-import { fmtKm, fmtPace, fmtDate } from '../lib/insights'
+import { fmtKm } from '../lib/insights'
 
 const TREND_LABEL = {
-  up: { txt: 'Subindo', icon: '▲', cls: 'up' },
-  flat: { txt: 'Estável', icon: '●', cls: 'flat' },
-  down: { txt: 'Caindo', icon: '▼', cls: 'down' },
+  up: { txt: 'Subindo', icon: '▲' },
+  flat: { txt: 'Estável', icon: '●' },
+  down: { txt: 'Caindo', icon: '▼' },
 }
 
-const WEATHER_LABEL = {
-  clear: { icon: '☀', txt: 'Rio ensolarado' },
-  cloudy: { icon: '☁', txt: 'Rio nublado' },
-  rain: { icon: '🌧', txt: 'Rio chuvoso' },
-}
+const WEATHER_ICON = { clear: '☀', cloudy: '☁', rain: '☂' }
 
-export default function Header({ stats, trend, goal, weather, syncedAt }) {
+// AAAA-MM-DD → DD/MM/AAAA, sem passar por Date (evita drift de fuso)
+export const brDate = (iso) =>
+  iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? iso.slice(0, 10).split('-').reverse().join('/') : iso ?? ''
+
+export const longDate = (d) =>
+  d.toLocaleDateString('pt-BR', { day: '2-digit', month: 'short', year: 'numeric' })
+
+export default function Header({ stats, trend, goal, weather, syncDate }) {
   const t = TREND_LABEL[trend.dir]
-  const w = WEATHER_LABEL[weather] ?? WEATHER_LABEL.clear
-  // formata AAAA-MM-DD sem passar por Date (evita drift de fuso)
-  const syncBR = syncedAt && /^\d{4}-\d{2}-\d{2}/.test(syncedAt)
-    ? syncedAt.slice(0, 10).split('-').reverse().join('/')
-    : syncedAt
-  const sync = syncedAt
-    ? `sincronizado com o Strava · ${syncBR}`
-    : 'cada pico é uma corrida, a altura é a distância'
   return (
     <header className="panel header">
-      <div className="brand">
-        <h1>Cordilheira</h1>
-        <p className="tagline">{stats.count} corridas · {sync}</p>
+      <div className="header-top">
+        <div className="brand">
+          <h1>Cordilheira</h1>
+          <p className="muted">{stats.count} corridas · Strava {brDate(syncDate)}</p>
+        </div>
+        <span className="pill weather" title="Clima agora no Rio">
+          {WEATHER_ICON[weather.kind] ?? '☀'} {weather.temp != null ? `${weather.temp}°` : 'Rio'}
+        </span>
       </div>
-      <div className="stats">
+      <div className="header-stats">
         <div className="stat">
-          <span className="stat-label">Total percorrido</span>
-          <span className="stat-value">{fmtKm(stats.totalKm, 0)} <em>km</em></span>
-        </div>
-        <div className="stat record">
           <span className="stat-label">Recorde atual</span>
-          <span className="stat-value">{fmtKm(stats.record.km)} <em>km</em></span>
-          <span className="stat-sub">{fmtDate(stats.record.date)} · {fmtPace(stats.record.pace)}/km</span>
+          <span className="stat-value rec">{fmtKm(stats.record.km)}<em> km</em></span>
+          <span className="stat-sub">{longDate(stats.record.date)}</span>
         </div>
-        <div className={`stat trend-${t.cls}`}>
-          <span className="stat-label">Tendência (8 sem.)</span>
-          <span className="stat-value trend-txt">{t.icon} {t.txt}</span>
-          {trend.recentAvg && (
-            <span className="stat-sub">
-              média {fmtKm(trend.beforeAvg)} → {fmtKm(trend.recentAvg)} km
-            </span>
+        <div className="stat">
+          <span className="stat-label">8 semanas</span>
+          <span className={`stat-trend trend-${trend.dir}`}>{t.icon} {t.txt}</span>
+          {trend.recentAvg != null && (
+            <span className="stat-sub">{fmtKm(trend.beforeAvg)} → {fmtKm(trend.recentAvg)} km</span>
           )}
         </div>
-        <div className="stat goal">
+        <div className="stat">
           <span className="stat-label">Próximo pico</span>
-          <span className="stat-value">{fmtKm(goal.goalKm)} <em>km</em></span>
-          <span className="stat-sub">+10% sobre {fmtKm(goal.baseKm)} km recentes</span>
-        </div>
-        <div className="stat weather">
-          <span className="stat-label">Ambiente agora</span>
-          <span className="stat-value weather-txt">{w.icon}</span>
-          <span className="stat-sub">{w.txt}</span>
+          <span className="stat-goal">{fmtKm(goal.goalKm)} km</span>
+          <span className="stat-sub">+10% sobre {fmtKm(goal.baseKm)} km</span>
         </div>
       </div>
     </header>

@@ -138,8 +138,9 @@ export const fmtKm = (km, digits = 1) =>
   km.toLocaleString('pt-BR', { minimumFractionDigits: digits, maximumFractionDigits: digits })
 
 export const fmtPace = (secPerKm) => {
-  const m = Math.floor(secPerKm / 60)
-  const s = Math.round(secPerKm % 60)
+  let m = Math.floor(secPerKm / 60)
+  let s = Math.round(secPerKm % 60)
+  if (s === 60) { m++; s = 0 }
   return `${m}:${String(s).padStart(2, '0')}`
 }
 

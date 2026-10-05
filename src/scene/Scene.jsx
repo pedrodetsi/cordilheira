@@ -1,82 +1,116 @@
-import { Canvas, useThree, useFrame } from '@react-three/fiber'
+import { Canvas, useFrame, useThree } from '@react-three/fiber'
 import { OrbitControls } from '@react-three/drei'
-import { useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef } from 'react'
 import * as THREE from 'three'
 import Peak from './Peak'
 import Sky from './Sky'
 import Rain from './Rain'
 import Terrain from './Terrain'
 import RecordBurst from './RecordBurst'
-import { TrendRibbon, PlateauSheet, GoalPeak, RecordHalo, YearMarkers } from './extras'
+import { TrendRibbon, GoalPeak, RecordHalo, SelectRing, YearMarkers } from './extras'
 import { H_SCALE } from '../lib/layout'
 
-// Luzes e névoa dirigidas pelo ambiente (dia/noite × clima), lerpadas suave.
-function Environment({ env }) {
-  const hemi = useRef()
-  const sun = useRef()
-  const fill = useRef()
-  const { scene } = useThree()
-  const fog = useMemo(() => new THREE.Fog(env.fog.color, env.fog.near, env.fog.far), [])
-  scene.fog = fog
+const easeOut = (x) => 1 - Math.pow(1 - x, 3)
 
-  useFrame(() => {
-    if (hemi.current) {
-      hemi.current.color.lerp(_t.set(env.hemi.sky), 0.05)
-      hemi.current.groundColor.lerp(_t2.set(env.hemi.ground), 0.05)
-      hemi.current.intensity += (env.hemi.intensity - hemi.current.intensity) * 0.05
-    }
-    if (sun.current) {
-      sun.current.color.lerp(_t3.set(env.sun.color), 0.05)
-      sun.current.intensity += (env.sun.intensity - sun.current.intensity) * 0.05
-      sun.current.position.lerp(_v.set(...env.sun.position), 0.05)
-    }
-    if (fill.current) {
-      fill.current.color.lerp(_t4.set(env.fill.color), 0.05)
-      fill.current.intensity += (env.fill.intensity - fill.current.intensity) * 0.05
-    }
-    fog.color.lerp(_t5.set(env.fog.color), 0.05)
-    fog.near += (env.fog.near - fog.near) * 0.05
-    fog.far += (env.fog.far - fog.far) * 0.05
-  })
-
-  return (
-    <>
-      <hemisphereLight ref={hemi} args={[env.hemi.sky, env.hemi.ground, env.hemi.intensity]} />
-      <directionalLight ref={sun} position={env.sun.position} intensity={env.sun.intensity} color={env.sun.color} />
-      <directionalLight ref={fill} position={[-40, 30, -30]} intensity={env.fill.intensity} color={env.fill.color} />
-    </>
-  )
+// Exposição do tone mapping por tema (a noite é mais "aberta").
+function Exposure({ value }) {
+  const { gl } = useThree()
+  useEffect(() => { gl.toneMappingExposure = value }, [gl, value])
+  return null
 }
-const _t = new THREE.Color(), _t2 = new THREE.Color(), _t3 = new THREE.Color()
-const _t4 = new THREE.Color(), _t5 = new THREE.Color(), _v = new THREE.Vector3()
+
+// Câmera: voo de abertura (intro), voo curto ao entrar no mapa e transição
+// suave intro → mapa. Qualquer gesto do usuário interrompe o voo.
+function CameraRig({ mode, lastZ }) {
+  const { camera, controls } = useThree()
+  const flight = useRef(null)
+  const took = useRef(false)
+
+  const poses = useMemo(() => ({
+    introFrom: { p: new THREE.Vector3(-4, 60, lastZ + 120), t: new THREE.Vector3(0, 0, lastZ * 0.2) },
+    intro: { p: new THREE.Vector3(9, 7.5, lastZ + 19), t: new THREE.Vector3(0, 5, lastZ - 26) },
+    mapFrom: { p: new THREE.Vector3(18, 44, lastZ + 62), t: new THREE.Vector3(0, -1, lastZ * 0.18) },
+    map: { p: new THREE.Vector3(13, 27, lastZ + 42), t: new THREE.Vector3(0, -1, lastZ * 0.18) },
+  }), [lastZ])
+
+  useEffect(() => {
+    if (!controls) return
+    const first = flight.current == null
+    let from
+    if (first) {
+      from = mode === 'intro' ? poses.introFrom : poses.mapFrom
+      camera.position.copy(from.p)
+      controls.target.copy(from.t)
+    } else {
+      from = { p: camera.position.clone(), t: controls.target.clone() }
+    }
+    const to = mode === 'intro' ? poses.intro : poses.map
+    const dur = mode === 'intro' ? 5.5 : first ? 2.6 : 1.8
+    flight.current = { from, to, dur, start: null }
+    took.current = false
+    const stop = () => { took.current = true }
+    controls.addEventListener('start', stop)
+    return () => controls.removeEventListener('start', stop)
+  }, [mode, controls, camera, poses])
+
+  useFrame((state) => {
+    const f = flight.current
+    if (!f || took.current || !controls) return
+    if (f.start == null) f.start = state.clock.elapsedTime
+    const k = easeOut(Math.min(1, (state.clock.elapsedTime - f.start) / f.dur))
+    camera.position.lerpVectors(f.from.p, f.to.p, k)
+    controls.target.lerpVectors(f.from.t, f.to.t, k)
+    if (k >= 1) took.current = true
+  })
+  return null
+}
 
 export default function Scene({
-  runs, layout, matchedIds, selectedId, onSelect, onHover,
-  plateaus, monthly, trend, goal, record, env,
+  runs, layout, matchedIds, selected, onSelect,
+  monthly, goal, record, env, mode, lowPower,
 }) {
+  const P = env.palette
+  const shadows = !lowPower
+  const intro0 = useRef(mode === 'intro').current
+  const D0 = intro0 ? 0.1 : 0.25
+  const DSTEP = intro0 ? 0.006 : 0.009
   const recordPos = layout.pos.get(record.id)
+  const recordH = Math.max(0.35, record.km * H_SCALE)
+  const recordAt = D0 + record.i * DSTEP + 0.9
   const narrow = typeof window !== 'undefined' && window.innerWidth < 700
-  const camZ = layout.lastZ + (narrow ? 52 : 30)
-  const camY = narrow ? 26 : 19
-  const camFov = narrow ? 46 : 42
-  const growDelays = useMemo(
-    () => new Map(runs.map((r, i) => [r.id, 0.15 + i * 0.012])),
-    [runs]
-  )
-  const recordHeight = record.km * H_SCALE
+  const sunPos = env.sun.dir.map((v) => v * 120)
+  const selPos = selected && layout.pos.get(selected.id)
 
   return (
     <Canvas
-      dpr={[1, 2]}
-      camera={{ position: [4, camY, camZ], fov: camFov, near: 0.5, far: 700 }}
+      dpr={lowPower ? [1, 1.5] : [1, 2]}
+      shadows={shadows ? 'soft' : false}
+      camera={{ position: [18, 44, layout.lastZ + 62], fov: narrow ? 48 : 42, near: 0.5, far: 1200 }}
       onPointerMissed={() => onSelect(null)}
       gl={{ antialias: true }}
     >
-      <Environment env={env} />
+      <Exposure value={env.exposure} />
+      <fog attach="fog" args={[env.fog.color, env.fog.near, env.fog.far]} />
+      <hemisphereLight args={[env.hemi.sky, env.hemi.ground, env.hemi.intensity]} />
+      <directionalLight
+        position={sunPos}
+        color={env.sun.color}
+        intensity={env.sun.intensity}
+        castShadow={shadows}
+        shadow-mapSize={[2048, 2048]}
+        shadow-camera-left={-70}
+        shadow-camera-right={70}
+        shadow-camera-top={90}
+        shadow-camera-bottom={-90}
+        shadow-camera-near={1}
+        shadow-camera-far={320}
+        shadow-bias={-0.0004}
+        shadow-normalBias={0.03}
+      />
       <Sky env={env} />
-      <Terrain env={env} layout={layout} />
+      <Terrain layout={layout} palette={P} lowPower={lowPower} shadows={shadows} />
 
-      {runs.map((r) => {
+      {runs.map((r, i) => {
         const p = layout.pos.get(r.id)
         return (
           <Peak
@@ -86,39 +120,37 @@ export default function Scene({
             z={p.z}
             isRecord={r.id === record.id}
             matched={matchedIds.has(r.id)}
-            selected={r.id === selectedId}
+            palette={P}
+            shadows={shadows}
+            delay={D0 + i * DSTEP}
             onSelect={onSelect}
-            onHover={onHover}
-            growDelay={growDelays.get(r.id)}
           />
         )
       })}
 
-      <RecordHalo x={recordPos.x} z={recordPos.z} height={recordHeight} />
-      <RecordBurst
-        position={[recordPos.x, 0, recordPos.z]}
-        height={recordHeight}
-        startAt={(growDelays.get(record.id) ?? 0) + 1.25}
-      />
-      {plateaus.map((p) => (
-        <PlateauSheet key={p.start} plateau={p} runs={runs} layout={layout} />
-      ))}
-      <TrendRibbon monthly={monthly} rows={layout.rows} maxWidth={layout.maxWidth} trend={trend} />
-      <GoalPeak goal={goal} lastZ={layout.lastZ} />
-      <YearMarkers rows={layout.rows} maxWidth={layout.maxWidth} />
+      <RecordHalo x={recordPos.x} z={recordPos.z} height={recordH} palette={P} showAt={recordAt} />
+      <RecordBurst position={[recordPos.x, 0, recordPos.z]} height={recordH} startAt={recordAt + 0.35} />
+      {selPos && selected.id !== record.id && (
+        <SelectRing x={selPos.x} z={selPos.z} height={selected.km * H_SCALE} color={P.select} />
+      )}
+      <TrendRibbon monthly={monthly} rows={layout.rows} maxWidth={layout.maxWidth} palette={P} />
+      <GoalPeak goal={goal} lastZ={layout.lastZ} palette={P} />
+      <YearMarkers rows={layout.rows} maxWidth={layout.maxWidth} color={P.label} />
 
       {env.rainIntensity > 0 && (
         <Rain intensity={env.rainIntensity} center={[0, 0, layout.lastZ * 0.12]} />
       )}
 
       <OrbitControls
+        makeDefault
         enableDamping
         dampingFactor={0.08}
-        target={[0, 2.5, layout.lastZ * 0.12]}
+        enablePan={false}
         minDistance={8}
         maxDistance={190}
-        maxPolarAngle={1.5}
+        maxPolarAngle={1.47}
       />
+      <CameraRig mode={mode} lastZ={layout.lastZ} />
     </Canvas>
   )
 }
