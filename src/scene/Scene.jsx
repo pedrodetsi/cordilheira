@@ -7,6 +7,7 @@ import Sky from './Sky'
 import Rain from './Rain'
 import Terrain from './Terrain'
 import RecordBurst from './RecordBurst'
+import TapPicker from './TapPicker'
 import { TrendRibbon, GoalPeak, RecordHalo, SelectRing, YearMarkers } from './extras'
 import { H_SCALE } from '../lib/layout'
 
@@ -86,7 +87,6 @@ export default function Scene({
       dpr={lowPower ? [1, 1.5] : [1, 2]}
       shadows={shadows ? 'soft' : false}
       camera={{ position: [18, 44, layout.lastZ + 62], fov: narrow ? 48 : 42, near: 0.5, far: 1200 }}
-      onPointerMissed={() => onSelect(null)}
       gl={{ antialias: true }}
     >
       <Exposure value={env.exposure} />
@@ -123,7 +123,6 @@ export default function Scene({
             palette={P}
             shadows={shadows}
             delay={D0 + i * DSTEP}
-            onSelect={onSelect}
           />
         )
       })}
@@ -151,6 +150,7 @@ export default function Scene({
         maxPolarAngle={1.47}
       />
       <CameraRig mode={mode} lastZ={layout.lastZ} />
+      <TapPicker onSelect={onSelect} />
     </Canvas>
   )
 }
