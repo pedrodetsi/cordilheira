@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { RAW } from './data/activities'
 import { loadRuns } from './data/loader'
+import { keepRuns } from './data/exclusions'
 import {
   enrich, computeStats, detectPlateaus, monthlyAverages,
   computeTrend, computeGoal, matchesFilters,
@@ -36,7 +37,7 @@ export default function App() {
     })
   }, [])
 
-  const runs = useMemo(() => enrich(raw), [raw])
+  const runs = useMemo(() => enrich(keepRuns(raw)), [raw])
   const layout = useMemo(() => buildLayout(runs), [runs])
   const stats = useMemo(() => computeStats(runs), [runs])
   const plateaus = useMemo(() => detectPlateaus(runs), [runs])

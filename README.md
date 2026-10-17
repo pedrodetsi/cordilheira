@@ -54,6 +54,11 @@ retorno da API do Strava (ou do conector MCP) e regrave `activities.js` —
 nenhum outro arquivo precisa mudar. Todos os insights (recordes, platôs,
 tendência, meta) são recalculados automaticamente.
 
+Corridas ocultas: `src/data/exclusions.js` define o que não entra no mapa
+(hoje: corridas de 2026 com ritmo acima de 6:30/km, feitas no ritmo de outra
+pessoa). Os dados continuam no JSON; a regra vale também para sincronizações
+futuras.
+
 ## PWA (instalar como app)
 
 O app é uma PWA: manifest em `public/manifest.webmanifest`, service worker em
